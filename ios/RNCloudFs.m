@@ -169,53 +169,6 @@ RCT_EXPORT_METHOD(listFiles:(NSDictionary *)options
     }
 }
 
-
-RCT_EXPORT_METHOD(getIcloudDocument:(NSString *)filename
-resolver:(RCTPromiseResolveBlock)resolver
-rejecter:(RCTPromiseRejectBlock)rejecter) {
-    __block bool resolved = NO;
-    _query = [[NSMetadataQuery alloc] init];
-
-    [_query setSearchScopes:@[NSMetadataQueryUbiquitousDocumentsScope, NSMetadataQueryUbiquitousDataScope]];
-
-    NSPredicate *pred = [NSPredicate predicateWithFormat: @"%K == %@", NSMetadataItemFSNameKey, filename];
-    [_query setPredicate:pred];
-
-
-    [[NSNotificationCenter defaultCenter] addObserverForName:
-     NSMetadataQueryDidFinishGatheringNotification
-    object:_query queue:[NSOperationQueue currentQueue]
-    usingBlock:^(NSNotification __strong *notification)
-    {
-        NSMetadataQuery *query = [notification object];
-        [query disableUpdates];
-        [query stopQuery];
-        for (NSMetadataItem *item in query.results) {
-            if([[item valueForAttribute:NSMetadataItemFSNameKey] isEqualToString:filename]){
-                resolved = YES;
-                NSURL *url = [item valueForAttribute:NSMetadataItemURLKey];
-                bool fileIsReady = [self downloadFileIfNotAvailable: item];
-                if(fileIsReady){
-                    NSData *data = [NSData dataWithContentsOfURL: url];
-                    NSString *content = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                    return resolver(content);
-                } else {
-                    // Call itself until the file it's ready
-                    [self getIcloudDocument:filename resolver:resolver rejecter:rejecter];
-                }
-            }
-        }
-        if(!resolved){
-            return rejecter(@"error", [NSString stringWithFormat:@"item not found '%@'", filename], nil);
-        }
-    }];
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self->_query startQuery];
-    });
-
-}
-
 RCT_EXPORT_METHOD(deleteFromCloud:(NSDictionary *)item
 resolver:(RCTPromiseResolveBlock)resolver
 rejecter:(RCTPromiseRejectBlock)rejecter) {
